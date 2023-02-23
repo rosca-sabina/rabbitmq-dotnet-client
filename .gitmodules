@@ -5,3 +5,5 @@
 [submodule "NetCoreServer"]
 	path = projects/NetCoreServer
 	url = git@github.com:chronoxor/NetCoreServer.git
+	branch = 7.0.0
+    ignore = untracked

@@ -18,7 +18,8 @@ namespace NetCoreClient
 
         protected override void OnConnected()
         {
-            Console.WriteLine($"RabbitMQ client connected a new session with Id {Id}");
+            Console.WriteLine($"RabbitMQ client connected a new session with Id {Id}, sending AMQP handshake");
+            SendHeader();
         }
 
         protected override void OnDisconnected()
@@ -44,6 +45,20 @@ namespace NetCoreClient
         }
 
         private bool _stop;
+
+        private void SendHeader()
+        {
+            Span<byte> headerBytes = stackalloc byte[8];
+            headerBytes[0] = (byte)'A';
+            headerBytes[1] = (byte)'M';
+            headerBytes[2] = (byte)'Q';
+            headerBytes[3] = (byte)'P';
+            headerBytes[4] = 0;
+            headerBytes[5] = (byte)0;
+            headerBytes[6] = (byte)9;
+            headerBytes[7] = (byte)1;
+            Send(headerBytes);
+        }
     }
 
     class Program
@@ -71,9 +86,8 @@ namespace NetCoreClient
             // Connect the client
             Console.Write("RabbitMQ client connecting...");
             client.ConnectAsync();
-            Console.WriteLine("Done!");
 
-            Thread.Sleep(TimeSpan.FromSeconds(1));
+            Thread.Sleep(TimeSpan.FromSeconds(5));
 
             // Disconnect the client
             Console.Write("Client disconnecting...");
