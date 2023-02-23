@@ -2,3 +2,6 @@
 	path = _site
 	url = https://github.com/rabbitmq/rabbitmq-dotnet-client.git
 	branch = gh-pages
+[submodule "NetCoreServer"]
+	path = projects/NetCoreServer
+	url = git@github.com:chronoxor/NetCoreServer.git
