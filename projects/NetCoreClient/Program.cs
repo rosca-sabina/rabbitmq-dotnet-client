@@ -1,12 +1,32 @@
-﻿using System.Net.Sockets;
+﻿using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text;
+using Newtonsoft.Json;
+using RabbitMQ.Client;
+using RabbitMQ.Client.client.framing;
+using RabbitMQ.Client.Framing.Impl;
+using RabbitMQ.Client.Impl;
+using RabbitMQ.Util;
 using TcpClient = NetCoreServer.TcpClient;
 
 namespace NetCoreClient
 {
     class RabbitMQClient : TcpClient
     {
-        public RabbitMQClient(string address, int port) : base(address, port) { }
+        const int EndMarkerLength = 1;
+
+        enum State
+        {
+            DISCONNECTED,
+            AWAIT_HANDSHAKE,
+        }
+
+        private static readonly byte[] _amqpHeader = new byte[] {(byte)'A', (byte)'M', (byte)'Q', (byte)'P', 0, 0, 9, 1};
+        private State _state = State.DISCONNECTED;
+
+        public RabbitMQClient(string address, int port) : base(address, port)
+        {
+        }
 
         public void DisconnectAndStop()
         {
@@ -19,7 +39,8 @@ namespace NetCoreClient
         protected override void OnConnected()
         {
             Console.WriteLine($"RabbitMQ client connected a new session with Id {Id}, sending AMQP handshake");
-            SendHeader();
+            _state = State.AWAIT_HANDSHAKE;
+            SendAsync(_amqpHeader);
         }
 
         protected override void OnDisconnected()
@@ -36,7 +57,54 @@ namespace NetCoreClient
 
         protected override void OnReceived(byte[] buffer, long offset, long size)
         {
-            Console.WriteLine(Encoding.UTF8.GetString(buffer, (int)offset, (int)size));
+            Console.WriteLine($"[DEBUG] OnReceived offset: {offset} size: {size}");
+            switch (_state)
+            {
+                case State.AWAIT_HANDSHAKE:
+                    if (size < 6)
+                    {
+                        Console.Error.WriteLine("[ERROR] TODO whoops want more data");
+                    }
+                    byte firstByte = buffer[0];
+                    if (firstByte == 'A')
+                    {
+                        // Probably an AMQP protocol header, otherwise meaningless
+                        Console.Error.WriteLine("[ERROR] first byte is an A");
+                    }
+                    else
+                    {
+                        FrameType type = (FrameType)firstByte;
+                        var frameHeaderSpan = new ReadOnlySpan<byte>(buffer, 1, 6);
+                        int channel = NetworkOrderDeserializer.ReadUInt16(frameHeaderSpan);
+                        int payloadSize = NetworkOrderDeserializer.ReadInt32(frameHeaderSpan.Slice(2, 4));
+                        // TODO max message size
+                        int readSize = payloadSize + EndMarkerLength;
+                        Console.WriteLine($"[DEBUG] OnReceived frame type: {type} channel: {channel} payloadSize: {payloadSize} readSize: {readSize}");
+                        if (readSize > size)
+                        {
+                            Console.Error.WriteLine("[ERROR] TODO whoops want more data");
+                        }
+                        else
+                        {
+                            if (buffer[payloadSize + 7] != Constants.FrameEnd)
+                            {
+                                Console.Error.WriteLine($"[ERROR] bad frame end marker: {buffer[payloadSize]}");
+                            }
+                            else
+                            {
+                                var payloadSpan = new ReadOnlySpan<byte>(buffer, 7, readSize);
+                                var commandId = (ProtocolCommandId)NetworkOrderDeserializer.ReadUInt32(payloadSpan);
+                                Debug.Assert(commandId == ProtocolCommandId.ConnectionStart);
+                                var cs = new ConnectionStart(payloadSpan.Slice(4));
+                                Dump(cs);
+                            }
+                        }
+                    }
+                    break;
+                default:
+                    Console.WriteLine(Encoding.UTF8.GetString(buffer, (int)offset, (int)size));
+                    break;
+            }
         }
 
         protected override void OnError(SocketError error)
@@ -46,18 +114,10 @@ namespace NetCoreClient
 
         private bool _stop;
 
-        private void SendHeader()
+        private static void Dump(object o)
         {
-            Span<byte> headerBytes = stackalloc byte[8];
-            headerBytes[0] = (byte)'A';
-            headerBytes[1] = (byte)'M';
-            headerBytes[2] = (byte)'Q';
-            headerBytes[3] = (byte)'P';
-            headerBytes[4] = 0;
-            headerBytes[5] = (byte)0;
-            headerBytes[6] = (byte)9;
-            headerBytes[7] = (byte)1;
-            Send(headerBytes);
+            string json = JsonConvert.SerializeObject(o, Formatting.Indented);
+            Console.WriteLine($"[DEBUG] {json}");
         }
     }
 
