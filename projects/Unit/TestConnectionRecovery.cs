@@ -662,6 +662,55 @@ namespace RabbitMQ.Client.Unit
         }
 
         [Test]
+        public void TestServerNamedTransientAutoDeleteQueueBindingAndConsumerRecovery()
+        {
+            string x = "tmp-fanout";
+            IModel ch = Conn.CreateModel();
+            ch.ExchangeDelete(x);
+            ch.ExchangeDeclare(exchange: x, type: "fanout");
+            string q = ch.QueueDeclare(queue: "", durable: false, exclusive: false, autoDelete: true, arguments: null).QueueName;
+
+            var messageReceivedLatch = new ManualResetEventSlim(false);
+            var messageCount = 0;
+            var consumer = new EventingBasicConsumer(ch);
+            consumer.Received += (sender, eventArgs) =>
+            {
+                Interlocked.Increment(ref messageCount);
+
+                var channel = (sender as EventingBasicConsumer).Model;
+                channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
+
+                messageReceivedLatch.Set();
+            };
+            ch.BasicConsume("", autoAck: false, consumer);
+
+            string nameBefore = q;
+            string nameAfter = null;
+            var latch = new ManualResetEventSlim(false);
+            ((AutorecoveringConnection)Conn).QueueNameChangeAfterRecovery += (source, ea) =>
+            {
+                nameBefore = ea.NameBefore;
+                nameAfter = ea.NameAfter;
+                latch.Set();
+            };
+            ch.QueueBind(queue: nameBefore, exchange: x, routingKey: "");
+            RestartServerAndWaitForRecovery();
+            //Wait(latch);
+            Assert.IsTrue(ch.IsOpen);
+            Assert.AreNotEqual(nameBefore, nameAfter);
+            ch.ConfirmSelect();
+            ch.ExchangeDeclare(exchange: x, type: "fanout");
+            ch.BasicPublish(exchange: x, routingKey: "", basicProperties: null, body: encoding.GetBytes("msg"));
+            WaitForConfirms(ch);
+            messageReceivedLatch.Wait(TimeSpan.FromSeconds(5));
+            QueueDeclareOk ok = ch.QueueDeclarePassive(nameAfter);
+            Assert.AreEqual(1, messageCount);
+            Assert.AreEqual(1, ok.ConsumerCount);
+            ch.QueueDelete(q);
+            ch.ExchangeDelete(x);
+        }
+
+        [Test]
         public void TestRecoveryEventHandlersOnChannel()
         {
             int counter = 0;

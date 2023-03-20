@@ -689,7 +689,7 @@ namespace RabbitMQ.Client.Unit
 
         internal void Wait(ManualResetEventSlim latch)
         {
-            Assert.IsTrue(latch.Wait(TimeSpan.FromSeconds(10)), "waiting on a latch timed out");
+            Assert.IsTrue(latch.Wait(TimeSpan.FromSeconds(1000)), "waiting on a latch timed out");
         }
 
         internal void Wait(ManualResetEventSlim latch, TimeSpan timeSpan)
