@@ -60,6 +60,8 @@ namespace RabbitMQ.Client.Framing.Impl
 
         private readonly Dictionary<string, RecordedExchange> _recordedExchanges = new Dictionary<string, RecordedExchange>();
 
+        private readonly Dictionary<string, RecordedQueue> _recordedServerNamedQueues = new Dictionary<string, RecordedQueue>();
+
         private readonly Dictionary<string, RecordedQueue> _recordedQueues = new Dictionary<string, RecordedQueue>();
 
         private readonly Dictionary<RecordedBinding, byte> _recordedBindings = new Dictionary<RecordedBinding, byte>();
@@ -635,7 +637,14 @@ namespace RabbitMQ.Client.Framing.Impl
         {
             lock (_recordedEntitiesLock)
             {
-                _recordedQueues[name] = q;
+                if (q.IsServerNamed)
+                {
+                    _recordedServerNamedQueues[name] = q;
+                }
+                else
+                {
+                    _recordedQueues[name] = q;
+                }
             }
         }
 
@@ -1196,6 +1205,39 @@ namespace RabbitMQ.Client.Framing.Impl
                 try
                 {
                     rq.Recover(model);
+                    string newName = rq.Name;
+                }
+                catch (Exception cause)
+                {
+                    string s = string.Format("Caught an exception while recovering queue {0}: {1}",
+                        oldName, cause.Message);
+                    HandleTopologyRecoveryException(new TopologyRecoveryException(s, cause));
+                }
+            }
+        }
+
+        internal void RecoverServerNamedQueues(AutorecoveringModel modelToRecover, IModel channelToUse)
+        {
+            Dictionary<string, RecordedQueue> recordedServerNamedQueuesCopy;
+            lock (_recordedEntitiesLock)
+            {
+                recordedServerNamedQueuesCopy = new Dictionary<string, RecordedQueue>(_recordedServerNamedQueues);
+            }
+
+            foreach (KeyValuePair<string, RecordedQueue> pair in recordedServerNamedQueuesCopy)
+            {
+
+                string oldName = pair.Key;
+                RecordedQueue rq = pair.Value;
+
+                if (rq.Model != modelToRecover)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    rq.Recover(channelToUse);
                     string newName = rq.Name;
 
                     if (!oldName.Equals(newName))

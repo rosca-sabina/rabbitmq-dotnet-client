@@ -39,10 +39,11 @@ namespace RabbitMQ.Client.Impl
         private bool _durable;
         private bool _exclusive;
 
-        public RecordedQueue(string name) : base(name)
+        public RecordedQueue(AutorecoveringModel model, string name) : base(name)
         {
         }
 
+        public AutorecoveringModel Model { get; }
         public bool IsAutoDelete { get; private set; }
         public bool IsServerNamed { get; private set; }
 

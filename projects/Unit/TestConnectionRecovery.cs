@@ -670,6 +670,20 @@ namespace RabbitMQ.Client.Unit
             ch.ExchangeDeclare(exchange: x, type: "fanout");
             string q = ch.QueueDeclare(queue: "", durable: false, exclusive: false, autoDelete: true, arguments: null).QueueName;
 
+            //string q2 = ch.QueueDeclare(queue: "", durable: false, exclusive: false, autoDelete: true, arguments: null).QueueName;
+            //var consumer2 = new EventingBasicConsumer(ch);
+            //ch.BasicConsume("", autoAck: false, consumer2);
+            //var consumer3 = new EventingBasicConsumer(ch);
+            //ch.BasicConsume("", autoAck: false, consumer3);
+
+            //string q3 = Model.QueueDeclare(queue: "", durable: false, exclusive: false, autoDelete: true, arguments: null).QueueName;
+            //var consumer4 = new EventingBasicConsumer(ch);
+            //ch.BasicConsume("", autoAck: false, consumer4);
+
+            //string q4 = ch.QueueDeclare(queue: "", durable: false, exclusive: false, autoDelete: true, arguments: null).QueueName;
+            //var consumer5 = new EventingBasicConsumer(ch);
+            //ch.BasicConsume("", autoAck: false, consumer5);
+
             var messageReceivedLatch = new ManualResetEventSlim(false);
             var messageCount = 0;
             var consumer = new EventingBasicConsumer(ch);
@@ -695,7 +709,7 @@ namespace RabbitMQ.Client.Unit
             };
             ch.QueueBind(queue: nameBefore, exchange: x, routingKey: "");
             RestartServerAndWaitForRecovery();
-            //Wait(latch);
+            Wait(latch);
             Assert.IsTrue(ch.IsOpen);
             Assert.AreNotEqual(nameBefore, nameAfter);
             ch.ConfirmSelect();

@@ -1529,7 +1529,7 @@ namespace RabbitMQ.Client.Impl
 
             QueueDeclareOk result = _delegate.QueueDeclare(queue, durable, exclusive,
                 autoDelete, arguments);
-            RecordedQueue rq = new RecordedQueue(result.QueueName).
+            RecordedQueue rq = new RecordedQueue(this, result.QueueName).
                 Durable(durable).
                 Exclusive(exclusive).
                 AutoDelete(autoDelete).
@@ -1550,7 +1550,7 @@ namespace RabbitMQ.Client.Impl
 
             _delegate.QueueDeclareNoWait(queue, durable, exclusive,
                 autoDelete, arguments);
-            RecordedQueue rq = new RecordedQueue(queue).
+            RecordedQueue rq = new RecordedQueue(this, queue).
                 Durable(durable).
                 Exclusive(exclusive).
                 AutoDelete(autoDelete).
